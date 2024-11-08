@@ -8,6 +8,7 @@ const mongoose = require('mongoose');
 // Import the Express application instance
 const app = require('./app');
 
+// Import planets data from file
 const { loadPlanetsData } = require('./models/planets.model');
 
 // Define the server port, defaulting to 8000 if not specified in .env
@@ -34,6 +35,7 @@ mongoose.connection.on('error', (err) => {
 async function startServer() {
   // Connect to MongoDB using Mongoose
   await mongoose.connect(MONGO_URL);
+  // Load initial planets data
   await loadPlanetsData();
 
   // Start the server and listen on the specified port
