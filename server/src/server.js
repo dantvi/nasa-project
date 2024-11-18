@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 8000;
 
 // Set up MongoDB connection URL using environment variables for security
 const { DB_USERNAME, DB_PASSWORD } = process.env;
-const MONGO_URL = `mongodb+srv://${DB_USERNAME}:${DB_PASSWORD}@cluster0.7eym4.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+const MONGO_URL = `mongodb+srv://${DB_USERNAME}:${DB_PASSWORD}@cluster0.7eym4.mongodb.net/nasa?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create an HTTP server to handle requests using the Express app
 const server = http.createServer(app);
