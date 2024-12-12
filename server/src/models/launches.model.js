@@ -14,7 +14,7 @@ const launch = {
   mission: 'Keppler Exploration X',
   rocket: 'Explorer IS1',
   launchDate: new Date('December 27, 2030'),
-  target: 'Keppler-442 b',
+  target: 'Kepler-442 b',
   customers: ['ZTM', 'NASA'],
   upcoming: true,
   success: true
@@ -47,7 +47,7 @@ async function getAllLaunches() {
     find({}, { '_id': 0, '__v': 0 });
 }
 
-// Save a new launch to the database
+// Save new launch to the database
 async function saveLaunch(launch) {
   const planet = await planets.findOne({
     keplerName: launch.target // Check if the target planet exists
@@ -64,20 +64,21 @@ async function saveLaunch(launch) {
   });
 }
 
-// Add a new launch to the in-memory launches map
-function addNewLaunch(launch) {
-  latestFlightNumber++; // Increment the latest flight number
-  launches.set(
-    latestFlightNumber,
-    Object.assign(launch, {
-      flightNumber: latestFlightNumber,
-      customers: ['ZTM', 'NASA'], // Default customers
-      upcoming: true,
-      success: true
-    }));
+// Schedule new launch to the database
+async function scheduleNewLaunch(launch) {
+  const newFlightNumber = await getLatestFlightNumber() + 1;
+
+  const newLaunch = Object.assign(launch, {
+    sucess: true,
+    upcoming: true,
+    customers: ['ZTM', 'NASA'], // Default customers
+    flightNumber: newFlightNumber
+  });
+
+  await saveLaunch(newLaunch);
 }
 
-// Abort a launch by its ID
+// Abort launch by its ID
 function abortLaunchById(launchId) {
   const aborted = launches.get(launchId);
   aborted.upcoming = false;
@@ -89,6 +90,6 @@ function abortLaunchById(launchId) {
 module.exports = {
   existsLaunchWithId,
   getAllLaunches,
-  addNewLaunch,
+  scheduleNewLaunch,
   abortLaunchById
 }
