@@ -5,9 +5,6 @@ const planets = require('./planets.mongo');
 // Default flight number for a new launch
 const DEFAULT_FLIGHT_NUMBER = 100;
 
-// In-memory map to store launch data temporarily
-const launches = new Map();
-
 // Sample launch object with default values
 const launch = {
   flightNumber: 100,
@@ -24,8 +21,10 @@ const launch = {
 saveLaunch(launch);
 
 // Check if a launch with the given ID exists in the map
-function existsLaunchWithId(launchId) {
-  return launches.has(launchId);
+async function existsLaunchWithId(launchId) {
+  return await launchesDatabase.findOne({
+    flightNumber: launchId
+  });
 }
 
 // Retrieve the latest flight number from the database
@@ -57,7 +56,7 @@ async function saveLaunch(launch) {
     throw new Error('No matching planet found');
   }
 
-  await launchesDatabase.updateOne({
+  await launchesDatabase.findOneAndUpdate({
     flightNumber: launch.flightNumber, // Find the launch by flight number
   }, launch, {
     upsert: true // Insert if it doesn't exist, update if it does
@@ -79,11 +78,15 @@ async function scheduleNewLaunch(launch) {
 }
 
 // Abort launch by its ID
-function abortLaunchById(launchId) {
-  const aborted = launches.get(launchId);
-  aborted.upcoming = false;
-  aborted.success = false;
-  return aborted; // Return the updated launch object
+async function abortLaunchById(launchId) {
+  const aborted = await launchesDatabase.updateOne({
+    flightNumber: launchId
+  }, {
+    upcoming: false,
+    sucess: false
+  });
+
+  return aborted.modifiedCount === 1;
 }
 
 // Export the functions to be used in other modules
