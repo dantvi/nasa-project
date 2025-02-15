@@ -1,6 +1,6 @@
 const request = require('supertest');
 const app = require('../../app');
-const { trace } = require('./launches.router');
+const { mongoConnect } = require('../../services/mongo');
 
 describe('Test GET /launches', () => {
   test('It should respond with 200 success', async () => {
@@ -12,7 +12,6 @@ describe('Test GET /launches', () => {
 });
 
 describe('Test POST /launch', () => {
-
   const completeLaunchData = {
     mission: 'USS Enterprise',
     rocket: 'NCC 1701-D',
