@@ -1,98 +1,158 @@
-// Import the MongoDB models for launches and planets
+const axios = require('axios');
+
 const launchesDatabase = require('./launches.mongo');
 const planets = require('./planets.mongo');
 
-// Default flight number for a new launch
 const DEFAULT_FLIGHT_NUMBER = 100;
 
-// Sample launch object with default values
-const launch = {
-  flightNumber: 100,
-  mission: 'Keppler Exploration X',
-  rocket: 'Explorer IS1',
-  launchDate: new Date('December 27, 2030'),
-  target: 'Kepler-442 b',
-  customers: ['ZTM', 'NASA'],
-  upcoming: true,
-  success: true
-};
+const SPACEX_API_URL = 'https://api.spacexdata.com/v4/launches/query';
 
-// Save the initial sample launch to the database
-saveLaunch(launch);
+async function populateLaunches() {
+  console.log('Downloading launch data...');
+  const response = await axios.post(SPACEX_API_URL, {
+    query: {},
+    options: {
+      pagination: false,
+      populate: [
+        {
+          path: 'rocket',
+          select: {
+            name: 1,
+          },
+        },
+        {
+          path: 'payloads',
+          select: {
+            customers: 1,
+          },
+        },
+      ],
+    },
+  });
 
-// Check if a launch with the given ID exists in the map
+  if (response.status !== 200) {
+    console.log('Problem downloading launch data');
+    throw new Error('Launch data download failed');
+  }
+
+  const launchDocs = response.data.docs;
+  for (const launchDoc of launchDocs) {
+    const payloads = launchDoc['payloads'];
+    const customers = payloads.flatMap((payload) => {
+      return payload['customers'];
+    });
+
+    const launch = {
+      flightNumber: launchDoc['flight_number'],
+      mission: launchDoc['name'],
+      rocket: launchDoc['rocket']['name'],
+      launchDate: launchDoc['date_local'],
+      upcoming: launchDoc['upcoming'],
+      success: launchDoc['success'],
+      customers,
+    };
+
+    console.log(`${launch.flightNumber} ${launch.mission}`);
+
+    // TODO: populate launches collection...
+
+    await saveLaunch(launch);
+  }
+}
+
+async function loadLaunchData() {
+  const firstLaunch = await findLaunch({
+    flightNumber: 1,
+    rocket: 'Falcon 1',
+    mission: 'FalconSat',
+  });
+
+  if (firstLaunch) {
+    console.log('Launch data has already been loaded!');
+  } else {
+    await populateLaunches();
+  }
+}
+
+async function findLaunch(filter) {
+  return await launchesDatabase.findOne(filter);
+}
+
 async function existsLaunchWithId(launchId) {
-  return await launchesDatabase.findOne({
-    flightNumber: launchId
+  return await findLaunch({
+    flightNumber: launchId,
   });
 }
 
-// Retrieve the latest flight number from the database
 async function getLatestFlightNumber() {
-  const latestLaunch = await launchesDatabase
-    .findOne()
-    .sort('-flightNumber'); // Sort by flight number in descending order
+  const latestLaunch = await launchesDatabase.findOne().sort('-flightNumber');
 
   if (!latestLaunch) {
-    return DEFAULT_FLIGHT_NUMBER; // Default flight number if no launches exist
+    return DEFAULT_FLIGHT_NUMBER;
   }
 
   return latestLaunch.flightNumber;
 }
 
-// Get all launches from the database
-async function getAllLaunches() {
-  return await launchesDatabase.
-    find({}, { '_id': 0, '__v': 0 });
+async function getAllLaunches(skip, limit) {
+  return await launchesDatabase
+    .find({}, { _id: 0, __v: 0 })
+    .sort({ flightNumber: 1 })
+    .skip(skip)
+    .limit(limit);
 }
 
-// Save new launch to the database
 async function saveLaunch(launch) {
+  await launchesDatabase.findOneAndUpdate(
+    {
+      flightNumber: launch.flightNumber,
+    },
+    launch,
+    {
+      upsert: true,
+    }
+  );
+}
+
+async function scheduleNewLaunch(launch) {
   const planet = await planets.findOne({
-    keplerName: launch.target // Check if the target planet exists
+    keplerName: launch.target,
   });
 
   if (!planet) {
     throw new Error('No matching planet found');
   }
 
-  await launchesDatabase.findOneAndUpdate({
-    flightNumber: launch.flightNumber, // Find the launch by flight number
-  }, launch, {
-    upsert: true // Insert if it doesn't exist, update if it does
-  });
-}
-
-// Schedule new launch to the database
-async function scheduleNewLaunch(launch) {
-  const newFlightNumber = await getLatestFlightNumber() + 1;
+  const newFlightNumber = (await getLatestFlightNumber()) + 1;
 
   const newLaunch = Object.assign(launch, {
     sucess: true,
     upcoming: true,
-    customers: ['ZTM', 'NASA'], // Default customers
-    flightNumber: newFlightNumber
+    customers: ['ZTM', 'NASA'],
+    flightNumber: newFlightNumber,
   });
 
   await saveLaunch(newLaunch);
 }
 
-// Abort launch by its ID
 async function abortLaunchById(launchId) {
-  const aborted = await launchesDatabase.updateOne({
-    flightNumber: launchId
-  }, {
-    upcoming: false,
-    sucess: false
-  });
+  const aborted = await launchesDatabase.updateOne(
+    {
+      flightNumber: launchId,
+    },
+    {
+      upcoming: false,
+      sucess: false,
+    }
+  );
 
   return aborted.modifiedCount === 1;
 }
 
-// Export the functions to be used in other modules
 module.exports = {
+  loadLaunchData,
   existsLaunchWithId,
   getAllLaunches,
   scheduleNewLaunch,
-  abortLaunchById
-}
+  abortLaunchById,
+};
